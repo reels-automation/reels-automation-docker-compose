@@ -1,0 +1,131 @@
+version: '3.8'
+
+networks:
+  ollama-docker:
+    external: false
+  local-kafka:
+    driver: bridge
+
+services:
+  app:
+    build: .
+    ports:
+      - 8000:8000
+      - 5678:5678
+    volumes:
+      - .:/code
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: always
+    depends_on:
+      - ollama
+      - ollama-webui
+    networks:
+      - ollama-docker
+      - local-kafka
+
+  zookeeper:
+        image: confluentinc/cp-zookeeper:latest
+        container_name: zookeeper
+        ports:
+          - "2181:2181"
+        networks:
+          - local-kafka
+        environment:
+          ZOOKEEPER_CLIENT_PORT: 2181
+          ZOOKEEPER_TICK_TIME: 2000
+  
+  broker:
+            image: confluentinc/cp-kafka:latest
+            container_name: broker
+            networks:
+              - local-kafka
+            ports:
+              - "9092:9092"
+              - "9093:9093"
+            depends_on:
+              - zookeeper
+            environment:
+              KAFKA_BROKER_ID: 1
+              KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+              KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+              KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+              KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+              KAFKA_LISTENERS: PLAINTEXT_INTERNAL://0.0.0.0:29092,PLAINTEXT_C://0.0.0.0:9093,PLAINTEXT_L://0.0.0.0:9092
+              KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://broker:29092,PLAINTEXT_L://localhost:9092,PLAINTEXT_C://broker:9093
+              KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_INTERNAL:PLAINTEXT,PLAINTEXT_L:PLAINTEXT,PLAINTEXT_C:PLAINTEXT
+              KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      
+  kafka-ui:
+            image: provectuslabs/kafka-ui
+            container_name: kafka-ui
+            networks:
+              - local-kafka
+            depends_on:
+              - broker
+            ports:
+              - "7777:8080"
+            restart: always
+            environment:
+              - KAFKA_CLUSTERS_0_NAME=broker
+              - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=broker:9093
+              - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
+        
+  minio:
+            image: minio/minio:latest
+            container_name: minio
+            restart: always
+            command: server --console-address :9001 /data
+            environment:
+              - MINIO_ROOT_USER=AKIAIOSFODNN7EXAMPLE
+              - MINIO_ROOT_PASSWORD=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+            volumes:
+              - .minio:/data
+            ports:
+              - 9000:9000
+              - 9001:9001
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - 7869:11434
+    volumes:
+      - .:/code
+      - ./ollama/ollama:/root/.ollama
+    container_name: ollama
+    pull_policy: always
+    tty: true
+    restart: always
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - ollama-docker
+
+  ollama-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: ollama-webui
+    volumes:
+      - ./ollama/ollama-webui:/app/backend/data
+    depends_on:
+      - ollama
+    ports:
+      - 8080:8080
+    environment: # https://docs.openwebui.com/getting-started/env-configuration#default_models
+      - OLLAMA_BASE_URLS=http://host.docker.internal:7869 #comma separated ollama hosts
+      - ENV=dev
+      - WEBUI_AUTH=False
+      - WEBUI_NAME=valiantlynx AI
+      - WEBUI_URL=http://localhost:8080
+      - WEBUI_SECRET_KEY=t0p-s3cr3t
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    restart: unless-stopped
+    networks:
+      - ollama-docker
+
+volumes:
+  kafka-data:  # Declare the volume
+    driver: local
+
+
+  
