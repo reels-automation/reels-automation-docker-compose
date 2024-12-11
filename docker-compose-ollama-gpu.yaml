@@ -15,7 +15,8 @@ services:
       - ollama-webui
     networks:
       - ollama-docker
-  
+      - local-kafka
+
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     container_name: zookeeper
@@ -24,6 +25,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - local-kafka
 
   kafka:
     image: confluentinc/cp-kafka:latest
@@ -39,38 +42,57 @@ services:
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     volumes:
-      - kafka-data:/var/lib/kafka/data  # Volume for Kafka data persistence
-    entrypoint:
-      - /bin/bash
-      - -c
-      - |
-        # Start Kafka server
-        /etc/confluent/docker/run & 
-        # Wait for Kafka to be fully up
-        sleep 10
-        # Create topics
-        docker exec kafka kafka-topics --create --topic temas --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
-        docker exec kafka kafka-topics --create --topic scripts_video --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
-        # Keep Kafka running in the foreground
-        wait
+      - kafka-data:/var/lib/kafka/data
     networks:
-      - kafka-net
+      - local-kafka
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "7777:8080"
+    restart: always
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=broker
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
+    networks:
+      - local-kafka
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: always
+    command: server --console-address :9001 /data
+    environment:
+      - MINIO_ROOT_USER=AKIAIOSFODNN7EXAMPLE
+      - MINIO_ROOT_PASSWORD=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    volumes:
+      - .minio:/data
+    ports:
+      - 9000:9000
+      - 9001:9001
+    networks:
+      - ollama-docker
 
   ollama:
-    volumes:
-      - ./ollama/ollama:/root/.ollama
+    image: ollama/ollama:latest
     container_name: ollama
     pull_policy: always
     tty: true
-    restart: unless-stopped
-    image: ollama/ollama:latest
+    restart: always
     ports:
       - 7869:11434
+    volumes:
+      - .:/code
+      - ./ollama/ollama:/root/.ollama
     environment:
       - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
     networks:
       - ollama-docker
-    command: /bin/bash -c "ollama pull llama-2-7b && /bin/ollama serve"
     deploy:
       resources:
         reservations:
@@ -88,8 +110,8 @@ services:
       - ollama
     ports:
       - 8080:8080
-    environment: # https://docs.openwebui.com/getting-started/env-configuration#default_models
-      - OLLAMA_BASE_URLS=http://host.docker.internal:7869 #comma separated ollama hosts
+    environment:
+      - OLLAMA_BASE_URLS=http://host.docker.internal:7869
       - ENV=dev
       - WEBUI_AUTH=False
       - WEBUI_NAME=valiantlynx AI
@@ -101,14 +123,14 @@ services:
     networks:
       - ollama-docker
 
-
 volumes:
-  kafka-data:  # Declare the volume
+  kafka-data:
+    driver: local
+  .minio:
     driver: local
 
 networks:
-  kafka-net:
+  local-kafka:
     driver: bridge
-  
   ollama-docker:
     external: false
