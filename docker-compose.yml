@@ -5,6 +5,8 @@ networks:
     external: false
   local-kafka:
     driver: bridge
+  minio-network:
+    driver: bridge
 
 services:
   app:
@@ -22,6 +24,7 @@ services:
     networks:
       - ollama-docker
       - local-kafka
+      - minio-network
 
   zookeeper:
         image: confluentinc/cp-zookeeper:latest
@@ -83,6 +86,8 @@ services:
             ports:
               - 9000:9000
               - 9001:9001
+            networks:
+              - minio-network
 
   ollama:
     image: ollama/ollama:latest
