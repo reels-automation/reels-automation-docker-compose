@@ -1,4 +1,5 @@
 .dist
+.minio
 /src/__pycache__
 venv/
 ollama/
