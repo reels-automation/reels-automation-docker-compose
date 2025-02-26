@@ -7,6 +7,8 @@ networks:
     driver: bridge
   minio-network:
     driver: bridge
+  mongo-network:
+    driver: bridge
 
 services:
   app:
@@ -128,7 +130,19 @@ services:
     restart: unless-stopped
     networks:
       - ollama-docker
-
+  
+  mongodb:
+        image: mongo:latest
+        container_name: mongodb
+        ports:
+          - "27017:27017"
+        volumes:
+          - ./data/db:/data/db
+        networks:
+          - mongo-network
+    
+    
+    
 volumes:
   kafka-data:  # Declare the volume
     driver: local
