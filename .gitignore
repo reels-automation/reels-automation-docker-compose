@@ -5,3 +5,4 @@ venv/
 ollama/
 *.gguf
 *.ggml
+/data
