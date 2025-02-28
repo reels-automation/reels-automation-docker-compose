@@ -42,6 +42,8 @@ services:
   broker:
             image: confluentinc/cp-kafka:latest
             container_name: broker
+            env_file:
+              - .env
             networks:
               - local-kafka
             ports:
@@ -56,7 +58,7 @@ services:
               KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
               KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
               KAFKA_LISTENERS: PLAINTEXT_INTERNAL://0.0.0.0:9093,PLAINTEXT_EXTERNAL://0.0.0.0:9092
-              KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://broker:9093,PLAINTEXT_EXTERNAL://192.168.1.148:9092
+              KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://broker:9093,PLAINTEXT_EXTERNAL://${HOST_IP}:9092
               KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_INTERNAL:PLAINTEXT,PLAINTEXT_EXTERNAL:PLAINTEXT
               KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
               KAFKA_LISTENER_NAMES: PLAINTEXT_INTERNAL,PLAINTEXT_EXTERNAL

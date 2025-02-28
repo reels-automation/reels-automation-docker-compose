@@ -6,3 +6,4 @@ ollama/
 *.gguf
 *.ggml
 /data
+.env
